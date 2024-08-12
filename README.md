@@ -1,6 +1,7 @@
 # Update Announcement
 
 **New Features:**
+- [+] **Chkrootkit Privilege Escalation**
 - [+] **Systemctl Privilege Escalation**
 - [+] **LXC Privilege Escalation**
 - [+] **PKEXEC Privilege Escalation**

